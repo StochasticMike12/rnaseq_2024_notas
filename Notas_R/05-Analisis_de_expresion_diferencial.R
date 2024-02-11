@@ -124,6 +124,8 @@ eb_results <- eBayes(lmFit(vGene))
 
 de_results <- topTable(
   eb_results,
+  ## Se especifica qué columna se quiere tomar en cuenta para el análisis
+  ## estadístico
   coef = 2,
   number = nrow(rse_gene_SRP045638),
   sort.by = "none"
@@ -188,4 +190,147 @@ col.sex <- as.character(col.sex)
 plotMDS(vGene$E, labels = df$Sex, col = col.sex)
 
 
+## 5.6 EJERCICIO
 
+## Agreguen los nombres de los genes a nuestro pheatmap. (respuesta de apuntes)
+
+## Pistas:
+
+## - Revisen la información de rowRanges(rse_gene_SRP045638) o de_results.
+## - Exploren que hace la función match().
+
+## Tenemos que usar gene_id y gene_name
+rowRanges(rse_gene_SRP045638)
+
+## Alternativamente, podriamos haber usado de_results
+head(de_results, n = 3)
+
+## Es la misma información
+identical(rowRanges(rse_gene_SRP045638)$gene_id, de_results$gene_id)
+
+## Guardemos los IDs de nuestros 50 genes
+nombres_originales <- rownames(exprs_heatmap)
+
+## Con match() podemos encontrar cual es cual
+rownames(exprs_heatmap) <- rowRanges(rse_gene_SRP045638)$gene_name[
+  match(rownames(exprs_heatmap), rowRanges(rse_gene_SRP045638)$gene_id)
+]
+
+## Vean que tambien podriamos haber usado rank()
+identical(
+  which(rank(de_results$adj.P.Val) <= 50),
+  match(nombres_originales, rowRanges(rse_gene_SRP045638)$gene_id)
+)
+
+## Esta es otra solución
+identical(
+  de_results$gene_name[rank(de_results$adj.P.Val) <= 50],
+  rownames(exprs_heatmap)
+)
+
+## Por último podemos cambiar el valor de show_rownames de FALSE a TRUE
+pheatmap(
+  exprs_heatmap,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  show_rownames = TRUE,
+  show_colnames = FALSE,
+  annotation_col = df
+)
+
+
+## Guardar la imagen en un PDF largo para poder ver los nombres de los genes
+pdf("pheatmap_con_nombres.pdf", height = 14, useDingbats = FALSE)
+pheatmap(
+  exprs_heatmap,
+  cluster_rows = TRUE,
+  cluster_cols = TRUE,
+  show_rownames = TRUE,
+  show_colnames = FALSE,
+  annotation_col = df
+)
+dev.off()
+
+
+## https://bioconductor.org/packages/release/bioc/vignettes/EnhancedVolcano/inst/doc/EnhancedVolcano.html
+## Buscar imagenes que sean de nuestro interés y checar el código para hacerla.
+## https://ggobi.github.io/ggally/reference/ggpairs.html
+
+## ¿Por qué usamos el paquete edgeR?
+## Para calcular los factores de normalización
+
+## 7 REVISION
+speaqeasy_data <- file.path(tempdir(), "rse_speaqeasy.RData")
+download.file("https://github.com/LieberInstitute/SPEAQeasy-example/blob/master/rse_speaqeasy.RData?raw=true", speaqeasy_data, mode = "wb")
+library("SummarizedExperiment")
+load(speaqeasy_data, verbose = TRUE)
+
+rse_gene$PrimaryDx <- droplevels(rse_gene$PrimaryDx)
+
+## Ojo! Acá es importante que hayamos usado droplevels(rse_gene$PrimaryDx)
+## si no, vamos a tener un modelo que no sea _full rank_
+mod <- with(
+    colData(rse_gene),
+    model.matrix(~ PrimaryDx + totalAssignedGene + mitoRate + rRNA_rate + BrainRegion + Sex + AgeDeath)
+)
+
+## Exploremos el modelo de forma interactiva
+if (interactive()) {
+    ## Tenemos que eliminar columnas que tienen NAs.
+    info_no_NAs <- colData(rse_gene)[, c(
+        "PrimaryDx", "totalAssignedGene", "rRNA_rate", "BrainRegion", "Sex",
+        "AgeDeath", "mitoRate", "Race"
+    )]
+    ExploreModelMatrix::ExploreModelMatrix(
+        info_no_NAs,
+        ~ PrimaryDx + totalAssignedGene + mitoRate + rRNA_rate + BrainRegion + Sex + AgeDeath
+    )
+
+    ## Veamos un modelo más sencillo sin las variables numéricas (continuas) porque
+    ## ExploreModelMatrix nos las muestra como si fueran factors (categoricas)
+    ## en vez de continuas
+    ExploreModelMatrix::ExploreModelMatrix(
+        info_no_NAs,
+        ~ PrimaryDx + BrainRegion + Sex
+    )
+
+    ## Si agregamos + Race nos da errores porque Race solo tiene 1 opción
+    # ExploreModelMatrix::ExploreModelMatrix(
+    #     info_no_NAs,
+    #     ~ PrimaryDx + BrainRegion + Sex + Race
+    # )
+}
+
+## Ojo! Acá es importante que hayamos usado droplevels(rse_gene$PrimaryDx)
+## si no, vamos a tener un modelo que no sea _full rank_
+mod <- with(
+  colData(rse_gene),
+  model.matrix(~ PrimaryDx + totalAssignedGene + mitoRate + rRNA_rate + BrainRegion + Sex + AgeDeath)
+)
+
+## Exploremos el modelo de forma interactiva
+if (interactive()) {
+  ## Tenemos que eliminar columnas que tienen NAs.
+  info_no_NAs <- colData(rse_gene)[, c(
+    "PrimaryDx", "totalAssignedGene", "rRNA_rate", "BrainRegion", "Sex",
+    "AgeDeath", "mitoRate", "Race"
+  )]
+  ExploreModelMatrix::ExploreModelMatrix(
+    info_no_NAs,
+    ~ PrimaryDx + totalAssignedGene + mitoRate + rRNA_rate + BrainRegion + Sex + AgeDeath
+  )
+
+  ## Veamos un modelo más sencillo sin las variables numéricas (continuas) porque
+  ## ExploreModelMatrix nos las muestra como si fueran factors (categoricas)
+  ## en vez de continuas
+  ExploreModelMatrix::ExploreModelMatrix(
+    info_no_NAs,
+    ~ PrimaryDx + BrainRegion + Sex
+  )
+
+  ## Si agregamos + Race nos da errores porque Race solo tiene 1 opción
+  # ExploreModelMatrix::ExploreModelMatrix(
+  #     info_no_NAs,
+  #     ~ PrimaryDx + BrainRegion + Sex + Race
+  # )
+}
